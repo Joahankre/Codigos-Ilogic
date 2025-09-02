@@ -1,0 +1,88 @@
+Sub Main()
+    ' Verifica se o documento ativo é um DrawingDocument
+    If TypeOf ThisDoc.Document Is DrawingDocument Then
+        Dim dwgDoc As DrawingDocument = ThisDoc.Document
+
+        ' Percorre todas as folhas do desenho
+        For Each dwgSheet As Sheet In dwgDoc.Sheets
+            If dwgSheet.DrawingViews.Count > 0 Then
+
+                ' Obtém o documento referenciado pela primeira vista da folha
+                Dim refDoc As Document
+                Try
+                    refDoc = dwgSheet.DrawingViews(1).ReferencedDocumentDescriptor.ReferencedDocument
+                Catch ex As Exception
+                    MessageBox.Show("Erro ao acessar o modelo referenciado: " & ex.Message)
+                    Continue For
+                End Try
+
+                ' Obtém o nome do arquivo referenciado (para uso com iProperties)
+                Dim fullFileName As String = dwgSheet.DrawingViews(1).ReferencedDocumentDescriptor.FullDocumentName
+                Dim docFName As String = System.IO.Path.GetFileName(fullFileName)
+
+                ' Obtém o Part Number
+                Dim prtNumber As String
+                Try
+                    prtNumber = SanitizeText(iProperties.Value(docFName, "Project", "Part Number"))
+                Catch
+                    prtNumber = "DESCONHECIDO"
+                End Try
+
+                ' Obtém o valor da propriedade Category (Summary Information)
+                Dim categoryRaw As String = ""
+                Try
+                    categoryRaw = iProperties.Value(docFName, "Summary", "Category")
+                Catch
+                    categoryRaw = ""
+                End Try
+
+                ' Extrai o último prefixo (ex: "MF")
+                Dim categoryCode As String
+                If InStr(categoryRaw, " - ") > 0 Then
+                    Dim parts() As String = Split(categoryRaw, " - ")
+                    categoryCode = Trim(parts(UBound(parts))) ' Último item
+                Else
+                    categoryCode = Trim(categoryRaw)
+                End If
+
+                ' Limita o Part Number a no máximo 25 caracteres
+                If Len(prtNumber) > 25 Then
+                    prtNumber = Left(prtNumber, 25)
+                End If
+
+                ' Monta o novo nome da folha
+                If Not String.IsNullOrEmpty(prtNumber) Then
+                    Dim newSheetName As String = categoryCode & " - " & prtNumber
+                    If IsAssemblyDocument(docFName) And Not newSheetName.EndsWith("ASS'Y") Then
+                        newSheetName = newSheetName & " ASS'Y"
+                    End If
+                    dwgSheet.Name = newSheetName
+                End If
+            End If
+        Next
+    Else
+        MessageBox.Show("Este código deve ser executado em um arquivo de desenho (.idw).", "Erro")
+    End If
+End Sub
+
+' Remove caracteres especiais do Part Number
+Function SanitizeText(inputText As String) As String
+    On Error GoTo HandleError
+    Dim sanitizedText As String = inputText
+    Dim i As Integer
+    For i = 1 To Len(sanitizedText)
+        If Not Mid(sanitizedText, i, 1) Like "[A-Za-z0-9 ]" Then
+            sanitizedText = Replace(sanitizedText, Mid(sanitizedText, i, 1), ".")
+        End If
+    Next i
+    SanitizeText = sanitizedText
+    Exit Function
+HandleError:
+    SanitizeText = "ERRO"
+End Function
+
+' Verifica se o documento é uma montagem
+Function IsAssemblyDocument(docName As String) As Boolean
+    Dim fileExtension As String = System.IO.Path.GetExtension(docName).ToUpper()
+    Return fileExtension = ".IAM"
+End Function
