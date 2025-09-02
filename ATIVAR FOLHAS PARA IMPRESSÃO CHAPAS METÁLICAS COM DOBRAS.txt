@@ -1,0 +1,46 @@
+' iLogic: Ativar folhas com chapa metálica dobrada em várias planilhas
+
+' Obter o documento de desenho ativo
+Dim oDoc As DrawingDocument = ThisApplication.ActiveDocument
+
+' Verificar se o documento é um desenho
+If oDoc.DocumentType <> DocumentTypeEnum.kDrawingDocumentObject Then
+    MessageBox.Show("Este não é um documento de desenho.")
+    Return
+End If
+
+' Iterar sobre todas as folhas do desenho, excluindo todas da impressão inicialmente
+For Each drawSheet As Sheet In oDoc.Sheets
+    drawSheet.ExcludeFromPrinting = True ' Excluir todas as folhas da impressão por padrão
+Next
+
+' Iterar sobre todas as vistas de desenho nas folhas
+For Each drawSheet As Sheet In oDoc.Sheets
+    ' Verificar se há vistas no desenho (por exemplo, vistas de peças)
+    For Each drawingView As DrawingView In drawSheet.DrawingViews
+        ' Se a vista estiver associada a uma peça referenciada no desenho
+        Dim oModel As Document = DrawingView.ReferencedDocumentDescriptor.ReferencedDocument
+        If oModel IsNot Nothing Then
+            ' Filtrar apenas peças de chapa metálica (verificando o DocumentSubTypeID)
+            If oModel.DocumentSubType.DocumentSubTypeID = "{9C464203-9BAE-11D3-8BAD-0060B0CE6BB4}" Then
+                ' Verificar se a peça referenciada é uma chapa metálica com dobras
+                If oModel.DocumentType = DocumentTypeEnum.kPartDocumentObject Then
+                    Dim sm As SheetMetalComponentDefinition = TryCast(oModel.ComponentDefinition, SheetMetalComponentDefinition)
+
+                    If sm IsNot Nothing AndAlso sm.Bends.Count > 0 Then
+                        ' A peça é uma chapa metálica com dobras
+
+                        ' Exibir número de dobras
+                        MessageBox.Show("A peça " & oModel.DisplayName & " contém " & sm.Bends.Count & " dobras.")
+
+                        ' Incluir a folha na impressão (Ativar)
+                        drawSheet.ExcludeFromPrinting = False ' Ativa a folha para impressão
+
+                        ' A folha já foi ativada, então interrompe a busca
+                        Exit For
+                    End If
+                End If
+            End If
+        End If
+    Next
+Next
