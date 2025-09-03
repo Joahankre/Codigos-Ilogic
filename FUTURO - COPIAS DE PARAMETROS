@@ -1,3 +1,4 @@
+https://modthemachine.typepad.com/my_weblog/iproperties/
 Sub CopiarParametrosDoAssemblyParaPecas()
     If ThisDoc.Document.DocumentType <> DocumentTypeEnum.kAssemblyDocumentObject Then
         MsgBox("O documento ativo deve ser um assembly.")
