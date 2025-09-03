@@ -1,0 +1,141 @@
+AddReference "System.Windows.Forms"
+AddReference "System.Drawing"
+Imports System.Windows.Forms
+Imports System.Drawing
+Imports Microsoft.VisualBasic
+
+
+' ------------------- FORMULÁRIO -------------------
+Class SimpleForm
+    Inherits Form
+
+    Private btnExport As Button
+    Private lblStatus As Label
+    Private oDrawing As DrawingDocument
+
+    Public Sub New(oDoc As DrawingDocument)
+        oDrawing = oDoc
+
+        Me.Text = "EXPORTAR FOLHAS PARA EXCEL"
+        Me.Width = 500
+        Me.Height = 220
+        Me.FormBorderStyle = FormBorderStyle.FixedDialog
+        Me.StartPosition = FormStartPosition.CenterScreen
+        Me.MaximizeBox = False
+
+        btnExport = New Button()
+        btnExport.Text = "Exportar para Excel"
+        btnExport.Width = 180
+        btnExport.Height = 40
+        btnExport.Location = New System.Drawing.Point(150, 30)
+        AddHandler btnExport.Click, AddressOf Me.Exportar
+        Me.Controls.Add(btnExport)
+
+        lblStatus = New Label()
+        lblStatus.Text = ""
+        lblStatus.Width = 450
+        lblStatus.Height = 60
+        lblStatus.Location = New System.Drawing.Point(20, 90)
+        Me.Controls.Add(lblStatus)
+    End Sub
+
+    Private Sub Exportar(ByVal sender As Object, ByVal e As EventArgs)
+        lblStatus.Text = "Exportando folhas..."
+        System.Windows.Forms.Application.DoEvents()
+
+        Try
+            Dim oExcelApp As Object = CreateObject("Excel.Application")
+            oExcelApp.Visible = True
+            Dim oWorkbook = oExcelApp.Workbooks.Add()
+            Dim oWorksheet = oWorkbook.Sheets(1)
+
+            ' Cabeçalhos
+            oWorksheet.Cells(1, 1).Value = "PART NUMBER"
+            oWorksheet.Cells(1, 2).Value = "DESCRIPTION"
+            oWorksheet.Cells(1, 3).Value = "NOME DA FOLHA"
+            oWorksheet.Cells(1, 4).Value = "NUMERO DA FOLHA"
+            oWorksheet.Cells(1, 5).Value = "TAMANHO DA FOLHA"
+
+            Dim i As Integer = 2
+            For Each oSheet As Sheet In oDrawing.Sheets
+                Dim nomeFolha As String = oSheet.Name
+                Dim numeroFolha As String = "N/D"
+
+                If nomeFolha.Contains(":") Then
+                    Dim partes() As String = Split(nomeFolha, ":")
+                    numeroFolha = Trim(partes(partes.Length - 1))
+                    nomeFolha = Trim(String.Join(":", partes, 0, partes.Length - 1))
+                End If
+
+                ' Tamanho da folha
+                Dim tamanhoFolha As String = ""
+                Select Case oSheet.Size
+                    Case DrawingSheetSizeEnum.kA0DrawingSheetSize : tamanhoFolha = "A0"
+                    Case DrawingSheetSizeEnum.kA1DrawingSheetSize : tamanhoFolha = "A1"
+                    Case DrawingSheetSizeEnum.kA2DrawingSheetSize : tamanhoFolha = "A2"
+                    Case DrawingSheetSizeEnum.kA3DrawingSheetSize : tamanhoFolha = "A3"
+                    Case DrawingSheetSizeEnum.kA4DrawingSheetSize : tamanhoFolha = "A4"
+                    Case Else : tamanhoFolha = "TAMANHO PERSONALIZADO"
+                End Select
+
+                ' Part Number e Descrição
+                Dim descricao As String = "SEM VISTA"
+                Dim partNumber As String = "SEM VISTA"
+
+                If oSheet.DrawingViews.Count > 0 Then
+                    Try
+                        Dim refDoc As Document = oSheet.DrawingViews(1).ReferencedDocumentDescriptor.ReferencedDocument
+                        descricao = GetSafeProperty(refDoc, "Design Tracking Properties", "Descrição")
+                        If descricao = "X" Then descricao = GetSafeProperty(refDoc, "Design Tracking Properties", "Description")
+
+                        partNumber = GetSafeProperty(refDoc, "Design Tracking Properties", "Número da peça")
+                        If partNumber = "X" Then partNumber = GetSafeProperty(refDoc, "Design Tracking Properties", "Part Number")
+
+                    Catch
+                        descricao = "ERRO"
+                        partNumber = "ERRO"
+                    End Try
+                End If
+
+                ' Escreve na planilha
+                oWorksheet.Cells(i, 1).Value = partNumber
+                oWorksheet.Cells(i, 2).Value = descricao
+                oWorksheet.Cells(i, 3).Value = nomeFolha
+                oWorksheet.Cells(i, 4).Value = numeroFolha
+                oWorksheet.Cells(i, 5).Value = tamanhoFolha
+                i += 1
+            Next
+
+            ' Salva arquivo Excel
+            Dim filePath As String = oDrawing.FullFileName
+            filePath = Microsoft.VisualBasic.Left(filePath, Len(filePath) - 4) & "_Folhas_Exportadas.xlsx"
+            oWorkbook.SaveAs(filePath)
+
+            lblStatus.Text = "Exportação concluída com sucesso!"
+        Catch ex As Exception
+            lblStatus.Text = "Erro ao exportar: " & ex.Message
+        End Try
+    End Sub
+
+    ' ✅ Função segura para propriedades
+    Private Function GetSafeProperty(doc As Document, propSetName As String, propName As String) As String
+        Try
+            Return doc.PropertySets.Item(propSetName).Item(propName).Value
+        Catch
+            Return "X"
+        End Try
+    End Function
+End Class
+
+' ------------------- SUB PRINCIPAL -------------------
+Sub Main()
+    Dim oDoc As Document = ThisApplication.ActiveDocument
+    If oDoc.DocumentType <> DocumentTypeEnum.kDrawingDocumentObject Then
+        MessageBox.Show("Abra um arquivo de desenho (.idw) para executar.", "Erro", MessageBoxButtons.OK)
+        Exit Sub
+    End If
+
+    Dim oDrawing As DrawingDocument = oDoc
+    Dim form As New SimpleForm(oDrawing)
+    System.Windows.Forms.Application.Run(form)
+End Sub
