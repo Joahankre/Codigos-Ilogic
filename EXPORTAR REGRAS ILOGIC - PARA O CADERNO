@@ -1,0 +1,44 @@
+Sub Main()
+    ' Verifica se o documento ativo é um desenho
+    If ThisApplication.ActiveDocumentType <> DocumentTypeEnum.kDrawingDocumentObject Then
+        MessageBox.Show("Abra um desenho (.idw) antes de rodar esta regra.", "Erro")
+        Return
+    End If 
+
+    ' Define o documento de desenho ativo
+    Dim oDoc As DrawingDocument = ThisApplication.ActiveDocument
+    Dim oPath As String = System.IO.Path.Combine(System.IO.Path.GetDirectoryName(oDoc.FullFileName), "iLogicRules")
+    Dim RuleText As String
+    Dim oRefDoc As Document
+
+    ' Percorre os documentos referenciados
+    For Each oRefDoc In oDoc.AllReferencedDocuments
+        ' Obtém as regras do documento referenciado
+        Dim iRules As Object = iLogicVb.Automation.Rules(oRefDoc)
+        If IsNothing(iRules) Then Continue For ' Nenhuma regra, então pula este documento
+
+        For Each iRule As iLogicRule In iRules
+            RuleText = iLogicVb.Automation.GetRule(oRefDoc, iRule.Name).Text
+            Call WriteToFile(oPath, iRule.Name, RuleText, oRefDoc)
+        Next
+    Next
+End Sub
+
+Sub WriteToFile(FileDirectory As String, RuleName As String, Contents As String, SourceDoc As Document)
+    ' Verifica se o diretório existe
+    If Not System.IO.Directory.Exists(FileDirectory) Then
+        System.IO.Directory.CreateDirectory(FileDirectory)
+    End If
+
+    ' Prepara o nome do arquivo
+    Dim oWriteName As String = System.IO.Path.Combine(FileDirectory, System.IO.Path.GetFileNameWithoutExtension(SourceDoc.FullFileName) & "-" & RuleName & ".txt")
+
+    ' Cria e escreve no arquivo
+    Try
+        Using oWrite As System.IO.StreamWriter = System.IO.File.CreateText(oWriteName)
+            oWrite.Write(Contents)
+        End Using
+    Catch ex As Exception
+        MessageBox.Show("Ocorreu um erro ao escrever o arquivo: " & ex.Message)
+    End Try
+End Sub
