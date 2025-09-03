@@ -1,0 +1,54 @@
+Sub CopiarParametrosDoAssemblyParaPecas()
+    If ThisDoc.Document.DocumentType <> DocumentTypeEnum.kAssemblyDocumentObject Then
+        MsgBox("O documento ativo deve ser um assembly.")
+        Return
+    End If
+
+    Dim asmDoc As AssemblyDocument = ThisDoc.Document
+    Dim asmParams As UserParameters = asmDoc.ComponentDefinition.Parameters.UserParameters
+
+    For Each refDoc As Document In asmDoc.AllReferencedDocuments
+        If refDoc.DocumentType = DocumentTypeEnum.kPartDocumentObject Then
+
+            Dim partDoc As PartDocument = refDoc
+
+            ' Se NÃO for peça com model states derivados (normal)
+            If partDoc.ComponentDefinition.ModelStates.Count = 1 Then
+
+                Dim partParams As UserParameters = partDoc.ComponentDefinition.Parameters.UserParameters
+
+                For Each asmUserParam As UserParameter In asmParams
+                    Try
+                        ' Se já existir, atualiza
+                        partParams.Item(asmUserParam.Name).Expression = asmUserParam.Expression
+                    Catch
+                        ' Se não existir, cria
+                        partParams.AddByExpression(asmUserParam.Name, asmUserParam.Expression, asmUserParam.Units)
+                    End Try
+                Next
+
+            Else
+                ' Peça com múltiplos Model States (com Factory Document)
+                Dim facDoc As PartDocument = partDoc.ComponentDefinition.FactoryDocument
+                Dim modelStates As ModelStates = facDoc.ComponentDefinition.ModelStates
+
+                For Each ms As ModelState In modelStates
+                    ms.Activate()
+
+                    Dim msParams As UserParameters = facDoc.ComponentDefinition.Parameters.UserParameters
+
+                    For Each asmUserParam As UserParameter In asmParams
+                        Try
+                            msParams.Item(asmUserParam.Name).Expression = asmUserParam.Expression
+                        Catch
+                            msParams.AddByExpression(asmUserParam.Name, asmUserParam.Expression, asmUserParam.Units)
+                        End Try
+                    Next
+                Next
+            End If
+
+        End If
+    Next
+
+    MsgBox("Parâmetros copiados com sucesso para todas as peças.")
+End Sub
